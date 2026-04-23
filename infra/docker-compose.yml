@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ysby-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ysby_root_password
+      MYSQL_DATABASE: ysby
+      MYSQL_USER: ysby_user
+      MYSQL_PASSWORD: ysby_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ysby-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 可选：Redis Commander (Redis 可视化工具)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ysby-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+  # 可选：Adminer (MySQL 可视化工具)
+  adminer:
+    image: adminer:latest
+    container_name: ysby-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+    profiles:
+      - tools
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  default:
+    name: ysby-network

@@ -1,0 +1,19 @@
+* text=auto
+
+# Source files
+*.ts text
+*.tsx text
+*.js text
+*.jsx text
+*.json text
+*.css text
+*.html text
+*.md text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.ico binary

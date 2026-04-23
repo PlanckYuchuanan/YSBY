@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql -h localhost -P 3306 -u root -p247391 -e \"SELECT 1 as test;\")",
+      "Bash(mysql -h localhost -P 3306 -u root -p247391qq -e \"SELECT 1 as test;\")",
+      "Bash(mysql -h localhost -P 3306 -u root -p247391qq -e \"CREATE DATABASE IF NOT EXISTS ysby CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\")",
+      "Bash(mysql -h localhost -P 3306 -u root -p247391qq ysby)",
+      "Bash(mysql -h localhost -P 3306 -u root -p247391qq --default-character-set=utf8mb4 ysby)",
+      "Bash(mysql -h localhost -P 3306 -u root -p247391qq ysby -e \"SHOW TABLES;\")",
+      "Bash(npm install *)",
+      "Bash(pnpm install *)",
+      "Bash(redis-cli ping *)",
+      "Bash(powershell -Command \"Test-NetConnection -ComputerName localhost -Port 6379 | Select-Object -Property TcpTestSucceeded\")",
+      "Bash(pnpm build *)"
+    ]
+  }
+}
