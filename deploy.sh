@@ -64,24 +64,27 @@ pnpm build
 echo "   ✓ gateway 构建完成"
 echo ""
 
+# PM2 命令
+PM2="npx pm2"
+
 # Step 7: 重启 user-service
 echo "[7/8] 重启 user-service..."
 cd $DEPLOY_DIR/services/user-service
-pm2 restart user-service 2>/dev/null || pm2 start dist/index.js --name user-service
+$PM2 restart user-service 2>/dev/null || $PM2 start dist/index.js --name user-service
 echo "   ✓ user-service 已启动"
 echo ""
 
 # Step 8: 启动/重启 gateway
 echo "[8/8] 启动/重启 gateway..."
 cd $DEPLOY_DIR/services/gateway
-pm2 restart gateway 2>/dev/null || pm2 start dist/index.js --name gateway
+$PM2 restart gateway 2>/dev/null || $PM2 start dist/index.js --name gateway
 echo "   ✓ gateway 已启动"
 echo ""
 
 # 显示 PM2 状态
 echo "----------------------------------------"
 echo "当前服务状态:"
-pm2 list
+$PM2 list
 echo ""
 echo "----------------------------------------"
 echo "服务端口:"
@@ -96,7 +99,7 @@ echo "   API 地址: http://8.137.174.210/api/"
 echo "=========================================="
 echo ""
 echo "常用命令:"
-echo "  查看日志: pm2 logs"
-echo "  重启 gateway: pm2 restart gateway"
-echo "  重启 user-service: pm2 restart user-service"
+echo "  查看日志: npx pm2 logs"
+echo "  重启 gateway: npx pm2 restart gateway"
+echo "  重启 user-service: npx pm2 restart user-service"
 echo ""
