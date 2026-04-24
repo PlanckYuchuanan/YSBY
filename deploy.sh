@@ -1,13 +1,12 @@
 #!/bin/bash
 # ================================================
-# 益寿巴渝 - 完整部署脚本（包括 gateway）
-# 在服务器 /opt/YSBY-app/mobile 目录下执行
+# 益寿巴渝 - 完整部署脚本
+# 在服务器 /opt/YSBY-app 目录下执行
 # ================================================
 
 set -e
 
 DEPLOY_DIR="/opt/YSBY-app"
-MOBILE_DIR="$DEPLOY_DIR/mobile"
 FRONTEND_DIR="$DEPLOY_DIR/frontend"
 
 echo "=========================================="
@@ -24,7 +23,7 @@ echo ""
 
 # Step 1: 进入项目目录，拉取最新代码
 echo "[1/8] 拉取最新代码..."
-cd $MOBILE_DIR
+cd $DEPLOY_DIR
 git fetch origin
 git reset --hard origin/main
 echo "   ✓ 代码已更新到最新版本"
@@ -47,34 +46,34 @@ echo ""
 echo "[4/8] 部署前端静态文件..."
 mkdir -p $FRONTEND_DIR/dist
 rm -rf $FRONTEND_DIR/dist/*
-cp -r apps/mobile/dist/* $FRONTEND_DIR/dist/
+cp -r dist/* $FRONTEND_DIR/dist/
 echo "   ✓ 前端已部署到 $FRONTEND_DIR/dist/"
 echo ""
 
 # Step 5: 构建 user-service
 echo "[5/8] 构建 user-service..."
-cd $MOBILE_DIR/services/user-service
+cd $DEPLOY_DIR/services/user-service
 pnpm build
 echo "   ✓ user-service 构建完成"
 echo ""
 
 # Step 6: 构建 gateway
 echo "[6/8] 构建 gateway..."
-cd $MOBILE_DIR/services/gateway
+cd $DEPLOY_DIR/services/gateway
 pnpm build
 echo "   ✓ gateway 构建完成"
 echo ""
 
 # Step 7: 重启 user-service
 echo "[7/8] 重启 user-service..."
-cd $MOBILE_DIR/services/user-service
+cd $DEPLOY_DIR/services/user-service
 pm2 restart user-service 2>/dev/null || pm2 start dist/index.js --name user-service
 echo "   ✓ user-service 已启动"
 echo ""
 
 # Step 8: 启动/重启 gateway
 echo "[8/8] 启动/重启 gateway..."
-cd $MOBILE_DIR/services/gateway
+cd $DEPLOY_DIR/services/gateway
 pm2 restart gateway 2>/dev/null || pm2 start dist/index.js --name gateway
 echo "   ✓ gateway 已启动"
 echo ""
