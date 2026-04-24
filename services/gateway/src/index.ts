@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { errorHandler } from './middleware/error';
 
 dotenv.config();
 
@@ -67,9 +66,6 @@ app.use('/internal', createProxyMiddleware({
   changeOrigin: true,
   pathRewrite: { '^/internal': '' },
 }));
-
-// Error handler
-app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Gateway service running on port ${PORT}`);
