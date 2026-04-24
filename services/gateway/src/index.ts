@@ -5,7 +5,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 dotenv.config();
 
-const app = express();
+const app: ReturnType<typeof express> = express();
 const PORT = process.env.PORT || 4000;
 
 // Middleware
