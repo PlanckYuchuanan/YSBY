@@ -1,0 +1,37 @@
+# ============================================
+# YSBY User Service systemd 服务配置
+# 路径: /etc/systemd/system/ysby-user.service
+# ============================================
+
+[Unit]
+Description=YSBY User Service
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ysby/user-service
+Environment=NODE_ENV=production
+Environment=PORT=4001
+Environment=MYSQL_HOST=127.0.0.1
+Environment=MYSQL_PORT=3306
+Environment=MYSQL_USER=root
+Environment=MYSQL_PASSWORD=247391
+Environment=MYSQL_DATABASE=ysby
+ExecStart=/usr/bin/node /opt/ysby/user-service/dist/index.js
+Restart=always
+RestartSec=10
+
+# 日志配置
+StandardOutput=append:/var/log/ysby/user-service.log
+StandardError=append:/var/log/ysby/user-service-error.log
+
+# 安全设置
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ysby
+
+[Install]
+WantedBy=multi-user.target

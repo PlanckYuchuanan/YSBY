@@ -31,6 +31,33 @@ function formatUser(user: any): any {
   return rest;
 }
 
+// 获取地区列表（支持三级联动）
+app.get('/areas', async (req, res) => {
+  try {
+    const { parent_id, level } = req.query;
+
+    let sql = 'SELECT * FROM areas WHERE 1=1';
+    const params: any[] = [];
+
+    if (level) {
+      sql += ' AND level = ?';
+      params.push(Number(level));
+    }
+
+    if (parent_id) {
+      sql += ' AND parent_id = ?';
+      params.push(parent_id);
+    }
+
+    sql += ' ORDER BY id ASC';
+
+    const [rows] = await pool.execute(sql, params) as any;
+    res.json({ code: 0, data: rows, message: 'success' });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+});
+
 // 获取当前用户
 app.get('/me/:userId', async (req, res) => {
   try {
@@ -44,6 +71,41 @@ app.get('/me/:userId', async (req, res) => {
     }
 
     res.json({ code: 0, data: formatUser(users[0]), message: 'success' });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+});
+
+// 更新用户资料
+app.put('/me/:userId', async (req, res) => {
+  try {
+    const { nickname, avatar, gender, birthday, location, location_code } = req.body;
+
+    // 构建更新字段
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (nickname !== undefined) { updates.push('nickname = ?'); values.push(nickname); }
+    if (avatar !== undefined) { updates.push('avatar = ?'); values.push(avatar); }
+    if (gender !== undefined) { updates.push('gender = ?'); values.push(gender); }
+    if (birthday !== undefined) { updates.push('birthday = ?'); values.push(birthday); }
+    if (location !== undefined) { updates.push('location = ?'); values.push(location); }
+    if (location_code !== undefined) { updates.push('location_code = ?'); values.push(location_code); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ code: 400, message: '没有要更新的字段' });
+    }
+
+    values.push(req.params.userId);
+
+    await pool.execute(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    const [users] = await pool.execute('SELECT * FROM users WHERE id = ?', [req.params.userId]) as any;
+
+    res.json({ code: 0, data: formatUser(users[0]), message: '更新成功' });
   } catch (err: any) {
     res.status(500).json({ code: 500, message: err.message });
   }
@@ -74,15 +136,6 @@ app.post('/send-code', async (req, res) => {
 app.post('/register', async (req, res) => {
   try {
     const { phone, code, password, nickname } = req.body;
-
-    // 验证验证码（开发模式跳过）
-    // const [codes] = await pool.execute(
-    //   'SELECT * FROM verification_codes WHERE phone = ? AND code = ? AND used = FALSE AND expired_at > NOW() ORDER BY created_at DESC LIMIT 1',
-    //   [phone, code]
-    // ) as any;
-    // if (!codes.length) {
-    //   return res.status(400).json({ code: 400, message: '验证码无效' });
-    // }
 
     // 检查手机号
     const [existing] = await pool.execute('SELECT id FROM users WHERE phone = ?', [phone]) as any;

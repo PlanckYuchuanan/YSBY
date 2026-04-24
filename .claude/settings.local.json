@@ -4,7 +4,15 @@
       "Bash(docker-compose up *)",
       "Bash(docker compose *)",
       "Bash(where docker *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(pnpm dev *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":4004 :4000 :3001 :4001 :3000 :4002 :4003 :4005 :8080\")",
+      "Bash(taskkill //F //PID 1244)",
+      "Bash(findstr \":3001\")"
     ]
   }
 }
