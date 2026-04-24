@@ -1,4 +1,4 @@
--- 插入区县数据（重庆主要区县）
+-- 插入区县数据
 INSERT IGNORE INTO areas (id, name, level, parent_id) VALUES
 -- 重庆市辖区
 ('500101', '万州区', 3, '500100'),
