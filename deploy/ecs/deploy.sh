@@ -43,7 +43,10 @@ echo "   ✓ gateway 构建完成"
 echo "[5/6] 构建前端..."
 cd $YSBY_DIR/apps/mobile
 pnpm build
-echo "   ✓ 前端构建完成"
+# 复制构建产物到 nginx 目录
+mkdir -p /opt/ysby/frontend
+cp -r dist/* /opt/ysby/frontend/dist/
+echo "   ✓ 前端构建并部署完成"
 
 # 6. 重启服务
 echo "[6/6] 重启服务..."
