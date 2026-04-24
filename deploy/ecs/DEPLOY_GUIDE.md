@@ -53,22 +53,18 @@ cd /opt/YSBY-app/apps/mobile
 # 安装依赖
 npm install
 
-# 修改 API 地址为相对路径
-# 编辑 App.tsx，找到 API_BASE，改为:
-# const API_BASE = '/ysby/api';
-
 # 构建
+
 npm run build
+
+# 构建产物位于 apps/mobile/dist/
 ```
 
 ## 第五步：配置 Nginx
 
 ```bash
 # 复制 Nginx 配置
-cp /opt/YSBY-app/deploy/ecs/nginx-ysby.conf /etc/nginx/sites-available/ysby
-
-# 创建软链接
-ln -sf /etc/nginx/sites-available/ysby /etc/nginx/sites-enabled/ysby
+cp /opt/YSBY-app/deploy/ecs/nginx-ysby.conf /etc/nginx/conf.d/ysby.conf
 
 # 测试配置
 nginx -t

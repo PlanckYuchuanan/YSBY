@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 
 // API 地址策略：
 // - 本地开发模式 (vite dev) → http://localhost:4000
-// - 生产模式 (vite build) → /ysby/api (ECS nginx 代理到 gateway:4000)
+// - 生产模式 (vite build) → /api (nginx 代理到 gateway:4000)
 const API_BASE = (() => {
   if (import.meta.env.DEV) {
     return 'http://localhost:4000';
   }
-  return '/ysby/api';
+  return '/api';
 })();
 
 const icons: Record<string, string> = {

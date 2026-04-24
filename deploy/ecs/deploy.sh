@@ -44,8 +44,8 @@ echo "[5/6] 构建前端..."
 cd $YSBY_DIR/apps/mobile
 pnpm build
 # 复制构建产物到 nginx 目录
-mkdir -p /opt/ysby/frontend
-cp -r dist/* /opt/ysby/frontend/dist/
+mkdir -p /opt/YSBY-app/frontend
+cp -r dist/* /opt/YSBY-app/frontend/dist/
 echo "   ✓ 前端构建并部署完成"
 
 # 6. 重启服务
