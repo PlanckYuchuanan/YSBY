@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
 // API 地址策略：
-// - 本地开发模式 (npm start) → 调用 localhost:4001 本地后端
-// - 本地测试模式 (TEST_API=1) → 调用公网后端
-// - 生产模式 (npm run build) → 调用 /api (nginx 代理到后端)
+// - 本地开发模式 (vite dev) → gateway:4000
+// - 生产模式 (npm run build) → /api (nginx 代理到 gateway)
 const API_BASE = (() => {
-  // 模式1: 测试公网接口 (本地前端调用公网后端，方便手机扫码测试)
-  if (typeof process !== 'undefined' && (process.env.TEST_API === '1' || (window as any).__TEST_API__)) {
-    return 'http://8.137.174.210/api';
+  // 生产模式 (nginx 代理到 gateway)
+  if (!import.meta.env.DEV) {
+    return '/api';
   }
-  // 模式2: 本地开发模式 (vite dev server)
-  if (import.meta.env.DEV) {
-    return 'http://localhost:4001';
-  }
-  // 模式3: 生产模式 (nginx 代理)
-  return '/api';
+  // 本地开发模式 (vite dev server) - 也通过 gateway 转发
+  return 'http://localhost:4000';
 })();
 
 const icons: Record<string, string> = {
