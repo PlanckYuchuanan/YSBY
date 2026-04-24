@@ -51,9 +51,9 @@ echo "   ✓ 前端构建完成"
 # 6. 重启后端服务
 echo "[6/7] 重启后端服务..."
 cd $YSBY_DIR
-npx pm2 restart user-service 2>/dev/null || (cd $USER_SERVICE_DIR && npx pm2 start dist/index.js --name user-service)
-npx pm2 restart gateway 2>/dev/null || (cd $GATEWAY_DIR && npx pm2 start dist/index.js --name gateway)
-npx pm2 save
+pm2 restart user-service 2>/dev/null || (cd $USER_SERVICE_DIR && pm2 start dist/index.js --name user-service)
+pm2 restart gateway 2>/dev/null || (cd $GATEWAY_DIR && pm2 start dist/index.js --name gateway)
+pm2 save
 echo "   ✓ 后端服务已启动"
 
 # 7. 验证部署
@@ -70,9 +70,9 @@ echo "========== YSBY 项目部署完成 =========="
 echo "访问地址: http://8.137.174.210/"
 echo ""
 echo "服务状态:"
-npx pm2 list
+pm2 list
 echo ""
 echo "常用命令:"
-echo "  查看 user-service 日志: npx pm2 logs user-service"
-echo "  查看 gateway 日志: npx pm2 logs gateway"
-echo "  重启所有服务: npx pm2 restart all"
+echo "  查看 user-service 日志: pm2 logs user-service"
+echo "  查看 gateway 日志: pm2 logs gateway"
+echo "  重启所有服务: pm2 restart all"
