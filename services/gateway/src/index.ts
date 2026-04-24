@@ -2,19 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error';
-import userRoutes from './routes/user';
-import videoRoutes from './routes/video';
-import imRoutes from './routes/im';
-import socialRoutes from './routes/social';
-import pointsRoutes from './routes/points';
-import shopRoutes from './routes/shop';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors());
@@ -26,13 +19,47 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes
-app.use('/api/user', userRoutes);
-app.use('/api/video', videoRoutes);
-app.use('/api/im', imRoutes);
-app.use('/api/social', socialRoutes);
-app.use('/api/points', pointsRoutes);
-app.use('/api/shop', shopRoutes);
+// API Routes - proxy to real services
+const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:4001';
+const VIDEO_SERVICE = process.env.VIDEO_SERVICE_URL || 'http://localhost:4003';
+const SOCIAL_SERVICE = process.env.SOCIAL_SERVICE_URL || 'http://localhost:4004';
+const POINTS_SERVICE = process.env.POINTS_SERVICE_URL || 'http://localhost:4002';
+const SHOP_SERVICE = process.env.SHOP_SERVICE_URL || 'http://localhost:4005';
+
+// User service proxy (/api/user/* → user-service:4001/*)
+app.use('/api/user', createProxyMiddleware({
+  target: USER_SERVICE,
+  changeOrigin: true,
+  pathRewrite: { '^/api/user': '' },
+}));
+
+// Video service proxy (/api/video/* → video-service:4003/*)
+app.use('/api/video', createProxyMiddleware({
+  target: VIDEO_SERVICE,
+  changeOrigin: true,
+  pathRewrite: { '^/api/video': '' },
+}));
+
+// Social service proxy (/api/social/* → social-service:4004/*)
+app.use('/api/social', createProxyMiddleware({
+  target: SOCIAL_SERVICE,
+  changeOrigin: true,
+  pathRewrite: { '^/api/social': '' },
+}));
+
+// Points service proxy (/api/points/* → points-service:4002/*)
+app.use('/api/points', createProxyMiddleware({
+  target: POINTS_SERVICE,
+  changeOrigin: true,
+  pathRewrite: { '^/api/points': '' },
+}));
+
+// Shop service proxy (/api/shop/* → shop-service:4005/*)
+app.use('/api/shop', createProxyMiddleware({
+  target: SHOP_SERVICE,
+  changeOrigin: true,
+  pathRewrite: { '^/api/shop': '' },
+}));
 
 // Service proxy (for internal service communication)
 app.use('/internal', createProxyMiddleware({

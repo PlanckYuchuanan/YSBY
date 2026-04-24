@@ -45,7 +45,7 @@ function LoginScreen({ onLogin, onNavigate }: { onLogin: () => void; onNavigate:
     if (!/^1[3-9]\d{9}$/.test(phone)) return alert('请输入正确的手机号');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/login`, {
+      const res = await fetch(`${API_BASE}/api/user/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, password })
@@ -106,7 +106,7 @@ function RegisterScreen({ onLogin, onNavigate }: { onLogin: () => void; onNaviga
     if (password !== confirmPassword) return alert('两次密码输入不一致');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/register`, {
+      const res = await fetch(`${API_BASE}/api/user/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, password, nickname })
@@ -323,7 +323,7 @@ function ProfileDetailScreen({ user, onBack, onUpdate }: { user: User; onBack: (
   // 加载省份列表
   const loadProvinces = async () => {
     try {
-      const res = await fetch(`${API_BASE}/areas?level=1`);
+      const res = await fetch(`${API_BASE}/api/user/areas?level=1`);
       const data = await res.json();
       if (data.code === 0) setProvinces(data.data);
     } catch (e) { console.error(e); }
@@ -332,7 +332,7 @@ function ProfileDetailScreen({ user, onBack, onUpdate }: { user: User; onBack: (
   // 加载城市列表
   const loadCities = async (parentId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/areas?parent_id=${parentId}`);
+      const res = await fetch(`${API_BASE}/api/user/areas?parent_id=${parentId}`);
       const data = await res.json();
       if (data.code === 0) setCities(data.data);
     } catch (e) { console.error(e); }
@@ -341,7 +341,7 @@ function ProfileDetailScreen({ user, onBack, onUpdate }: { user: User; onBack: (
   // 加载区县列表
   const loadDistricts = async (parentId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/areas?parent_id=${parentId}`);
+      const res = await fetch(`${API_BASE}/api/user/areas?parent_id=${parentId}`);
       const data = await res.json();
       if (data.code === 0) setDistricts(data.data);
     } catch (e) { console.error(e); }
@@ -404,7 +404,7 @@ function ProfileDetailScreen({ user, onBack, onUpdate }: { user: User; onBack: (
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/me/${user.id}`, {
+      const res = await fetch(`${API_BASE}/api/user/me/${user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
