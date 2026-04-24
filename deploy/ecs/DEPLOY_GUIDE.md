@@ -27,16 +27,16 @@ tar -xzvf ysby.tar.gz
 mysql -u root -p
 
 # 在 MySQL 中执行
-source /opt/ysby/deploy/ecs/init_db.sql
+source /opt/YSBY-app/deploy/ecs/init_db.sql
 
 # 或者直接执行
-mysql -u root -p < /opt/ysby/deploy/ecs/init_db.sql
+mysql -u root -p < /opt/YSBY-app/deploy/ecs/init_db.sql
 ```
 
 ## 第三步：构建后端
 
 ```bash
-cd /opt/ysby/services/user-service
+cd /opt/YSBY-app/services/user-service
 
 # 安装依赖
 npm install
@@ -48,7 +48,7 @@ npm run build
 ## 第四步：构建前端
 
 ```bash
-cd /opt/ysby/apps/mobile
+cd /opt/YSBY-app/apps/mobile
 
 # 安装依赖
 npm install
@@ -65,7 +65,7 @@ npm run build
 
 ```bash
 # 复制 Nginx 配置
-cp /opt/ysby/deploy/ecs/nginx-ysby.conf /etc/nginx/sites-available/ysby
+cp /opt/YSBY-app/deploy/ecs/nginx-ysby.conf /etc/nginx/sites-available/ysby
 
 # 创建软链接
 ln -sf /etc/nginx/sites-available/ysby /etc/nginx/sites-enabled/ysby
@@ -83,7 +83,7 @@ systemctl reload nginx
 
 ```bash
 # 复制服务文件
-cp /opt/ysby/deploy/ecs/ysby-user.service /etc/systemd/system/
+cp /opt/YSBY-app/deploy/ecs/ysby-user.service /etc/systemd/system/
 
 # 重载 systemd
 systemctl daemon-reload
@@ -99,7 +99,7 @@ systemctl status ysby-user
 方法二：直接运行
 
 ```bash
-cd /opt/ysby/services/user-service
+cd /opt/YSBY-app/services/user-service
 PORT=4001 MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 \
 MYSQL_USER=root MYSQL_PASSWORD=247391 MYSQL_DATABASE=ysby \
 npx tsx src/index.ts
@@ -138,7 +138,7 @@ tail -f /var/log/nginx/error.log
 ## 目录结构
 
 ```
-/opt/ysby/
+/opt/YSBY-app/
 ├── apps/
 │   └── mobile/           # 前端代码
 │       └── dist/         # 构建产物
