@@ -8,7 +8,7 @@ import cors from 'cors';
 
 dotenv.config();
 
-const app = express();
+const app: ReturnType<typeof express> = express();
 app.use(cors());
 app.use(express.json());
 
