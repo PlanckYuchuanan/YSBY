@@ -37,3 +37,18 @@ coverage/
 *.tmp
 *.temp
 .cache/
+.turbo/
+
+# Turbo build artifacts (generated .js and .d.ts from .ts files)
+apps/*/src/**/*.js
+apps/*/src/**/*.d.ts
+services/*/src/**/*.js
+services/*/src/**/*.d.ts
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+
+# Turbo generated files at app root level
+apps/*/*.js
+apps/*/*.d.ts
+!apps/*/vite.config.js
+!apps/*/vite.config.ts
