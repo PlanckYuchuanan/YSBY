@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
 // API 地址策略：
-// - 本地开发模式 (vite dev) → gateway:4000
-// - 生产模式 (npm run build) → /api (nginx 代理到 gateway)
+// - 本地开发模式 (vite dev) → http://localhost:4000
+// - 生产模式 (vite build) → /ysby/api (ECS nginx 代理到 gateway:4000)
 const API_BASE = (() => {
-  // 生产模式 (nginx 代理到 gateway)
-  if (!import.meta.env.DEV) {
-    return '/api';
+  if (import.meta.env.DEV) {
+    return 'http://localhost:4000';
   }
-  // 本地开发模式 (vite dev server) - 也通过 gateway 转发
-  return 'http://localhost:4000';
+  return '/ysby/api';
 })();
 
 const icons: Record<string, string> = {
