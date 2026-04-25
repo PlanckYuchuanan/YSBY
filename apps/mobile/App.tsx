@@ -627,7 +627,7 @@ function ProfileScreen({ onLogout, onOpenDetail }: { onLogout: () => void; onOpe
   }
 
   return (
-    <div style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+    <div style={{ flex: 1, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
       {/* 顶部个人信息卡片 */}
       <div style={{ background: 'linear-gradient(135deg, #06b6a8 0%, #059669 100%)', padding: '32px 20px 48px', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -794,7 +794,7 @@ export default function App() {
           borderTop: '1px solid #e0e0e0',
           backgroundColor: '#fff',
           zIndex: 100,
-          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)',
         }}>
           {['Video', 'Health', 'Message', 'Profile'].map((tab) => (
             <button
