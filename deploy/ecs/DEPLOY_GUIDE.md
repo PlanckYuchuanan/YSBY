@@ -2,126 +2,63 @@
 # YSBY 项目部署到 ECS - 手动部署指南
 # ============================================
 
-## 第一步：上传代码到 ECS
+## 部署流程（推荐）
 
 ```bash
-# 在本地项目根目录打包
-cd d:\MyWorkspace\Project\YSBY
-tar -czvf ysby.tar.gz apps/ services/ deploy/
+# 1. 在本地开发环境提交代码并推送到 Git
+git add .
+git commit -m "your changes"
+git push origin main
 
-# 上传到 ECS
-scp ysby.tar.gz root@8.137.174.210:/opt/
-
-# SSH 登录 ECS
+# 2. SSH 登录 ECS
 ssh root@8.137.174.210
 
-# 解压到 /opt
-cd /opt
-tar -xzvf ysby.tar.gz
+# 3. 进入项目目录，拉取最新代码并部署
+cd /opt/YSBY-app
+git pull origin main
+
+# 4. 执行部署脚本（自动构建并重启服务）
+bash deploy/ecs/deploy.sh
 ```
 
-## 第二步：初始化数据库
+## 部署脚本说明
+
+`deploy/ecs/deploy.sh` 会自动执行以下步骤：
+
+1. 拉取最新代码 (`git pull`)
+2. 安装依赖 (`pnpm install`)
+3. 构建 user-service (`npx tsc`)
+4. 构建 gateway (`npx tsc`)
+5. 构建前端 (`pnpm build`) 并复制到 nginx 目录
+6. 重启服务 (`pm2 restart`)
+
+## 验证部署
 
 ```bash
-# 登录 MySQL
-mysql -u root -p
-
-# 在 MySQL 中执行
-source /opt/YSBY-app/deploy/ecs/init_db.sql
-
-# 或者直接执行
-mysql -u root -p < /opt/YSBY-app/deploy/ecs/init_db.sql
-```
-
-## 第三步：构建后端
-
-```bash
-cd /opt/YSBY-app/services/user-service
-
-# 安装依赖
-npm install
-
-# 构建 TypeScript
-npm run build
-```
-
-## 第四步：构建前端
-
-```bash
-cd /opt/YSBY-app/apps/mobile
-
-# 安装依赖
-npm install
-
-# 构建
-
-npm run build
-
-# 构建产物位于 apps/mobile/dist/
-```
-
-## 第五步：配置 Nginx
-
-```bash
-# 复制 Nginx 配置
-cp /opt/YSBY-app/deploy/ecs/nginx-ysby.conf /etc/nginx/conf.d/ysby.conf
-
-# 测试配置
-nginx -t
-
-# 重载 Nginx
-systemctl reload nginx
-```
-
-## 第六步：启动后端服务
-
-方法一：使用 systemd（推荐）
-
-```bash
-# 复制服务文件
-cp /opt/YSBY-app/deploy/ecs/ysby-user.service /etc/systemd/system/
-
-# 重载 systemd
-systemctl daemon-reload
-
-# 启用并启动服务
-systemctl enable ysby-user
-systemctl start ysby-user
-
-# 查看状态
-systemctl status ysby-user
-```
-
-方法二：直接运行
-
-```bash
-cd /opt/YSBY-app/services/user-service
-PORT=4001 MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 \
-MYSQL_USER=root MYSQL_PASSWORD=247391 MYSQL_DATABASE=ysby \
-npx tsx src/index.ts
-```
-
-## 第七步：验证部署
-
-```bash
-# 测试 API
+# 测试后端服务
+curl http://127.0.0.1:4000/health
 curl http://127.0.0.1:4001/areas?level=1
 
 # 测试前端
-curl http://127.0.0.1/ysby/
+curl http://127.0.0.1/
 
 # 浏览器访问
-# http://8.137.174.210/ysby/
+# http://8.137.174.210/
 ```
 
 ## 常用命令
 
 ```bash
-# 查看后端日志
-journalctl -u ysby-user -f
+# 查看服务状态
+pm2 list
 
-# 重启后端
-systemctl restart ysby-user
+# 查看后端日志
+pm2 logs user-service
+pm2 logs gateway
+
+# 重启服务
+pm2 restart user-service
+pm2 restart gateway
 
 # 重载 Nginx
 systemctl reload nginx
@@ -137,15 +74,19 @@ tail -f /var/log/nginx/error.log
 /opt/YSBY-app/
 ├── apps/
 │   └── mobile/           # 前端代码
-│       └── dist/         # 构建产物
+│       └── dist/         # 构建产物 → /opt/YSBY-app/frontend/dist/
 ├── services/
-│   └── user-service/     # 后端服务
+│   ├── user-service/     # 用户服务 (端口 4001)
+│   │   └── dist/         # 编译产物
+│   └── gateway/          # API 网关 (端口 4000)
 │       └── dist/         # 编译产物
 ├── deploy/
 │   └── ecs/
-│       ├── init_db.sql   # 数据库初始化
+│       ├── deploy.sh     # 部署脚本
 │       ├── nginx-ysby.conf
-│       └── ysby-user.service
+│       └── init_db.sql   # 数据库初始化
+└── frontend/             # nginx 静态文件目录
+    └── dist/             # 前端构建产物
 ```
 
 ## 故障排查
@@ -153,23 +94,33 @@ tail -f /var/log/nginx/error.log
 ### 后端无法启动
 ```bash
 # 检查端口是否被占用
-netstat -tlnp | grep 4001
+netstat -tlnp | grep -E '4000|4001'
 
 # 检查 MySQL 连接
 mysql -u root -p -e "SHOW DATABASES;"
 
 # 查看错误日志
-journalctl -u ysby-user -n 50
+pm2 logs user-service --err
+pm2 logs gateway --err
 ```
 
 ### Nginx 502 错误
 ```bash
 # 检查后端是否运行
-curl http://127.0.0.1:4001/areas?level=1
+curl http://127.0.0.1:4000/health
 
 # 检查 Nginx 配置
 nginx -t
 
 # 查看 Nginx 错误日志
 tail -20 /var/log/nginx/error.log
+```
+
+### 前端静态文件问题
+```bash
+# 检查前端 dist 目录
+ls -la /opt/YSBY-app/frontend/dist/
+
+# 如果为空，重新复制
+cp -r /opt/YSBY-app/apps/mobile/dist/* /opt/YSBY-app/frontend/dist/
 ```
