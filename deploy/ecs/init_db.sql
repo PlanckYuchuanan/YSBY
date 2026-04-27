@@ -114,13 +114,8 @@ CREATE TABLE IF NOT EXISTS videos (
   INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- videos 表新增上传相关字段（已存在表时执行）
-ALTER TABLE videos
-  ADD COLUMN IF NOT EXISTS upload_channel VARCHAR(20) DEFAULT 'user' COMMENT 'user=用户上传, platform=平台上传' AFTER status,
-  ADD COLUMN IF NOT EXISTS uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间' AFTER upload_channel,
-  ADD COLUMN IF NOT EXISTS reviewed_at DATETIME DEFAULT NULL COMMENT '审核时间(null=自动审核)' AFTER uploaded_at,
-  ADD COLUMN IF NOT EXISTS published_at DATETIME DEFAULT NULL COMMENT '发布时间' AFTER reviewed_at,
-  ADD COLUMN IF NOT EXISTS oss_key VARCHAR(500) COMMENT 'OSS文件路径' AFTER published_at;
+-- videos 表新增上传相关字段（已存在表时执行，需要 MySQL 8.0.14+，否则跳过）
+-- 手动执行迁移脚本: mysql -u root -p ysby < alter_videos_upload.sql
 
 -- ============================================
 -- 视频点赞表
