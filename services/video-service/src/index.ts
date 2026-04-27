@@ -24,19 +24,39 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 const PORT = process.env.PORT || 4002;
 
-// OSS 客户端
-const ossClient = new OSS({
-  region: process.env.OSS_REGION || 'oss-cn-chengdu',
-  accessKeyId: process.env.OSS_ACCESS_KEY_ID || '',
-  accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET || '',
-  bucket: process.env.OSS_BUCKET || '',
-});
+// OSS 客户端（延迟初始化）
+let ossClient: OSS | null = null;
+
+function getOssClient(): OSS | null {
+  const accessKeyId = process.env.OSS_ACCESS_KEY_ID;
+  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET;
+
+  if (!accessKeyId || !accessKeySecret) {
+    return null;
+  }
+
+  if (!ossClient) {
+    ossClient = new OSS({
+      region: process.env.OSS_REGION || 'oss-cn-chengdu',
+      accessKeyId,
+      accessKeySecret,
+      bucket: process.env.OSS_BUCKET || '',
+    });
+  }
+
+  return ossClient;
+}
 
 // ============ OSS 上传凭证接口 ============
 // POST /upload-url
 // 前端请求上传凭证，前端直接上传视频到 OSS
 app.post('/upload-url', async (req, res) => {
   try {
+    const client = getOssClient();
+    if (!client) {
+      return res.status(503).json({ code: 503, message: 'OSS 未配置，请联系管理员', data: null });
+    }
+
     const userId = req.headers['x-user-id'] as string;
     if (!userId) {
       return res.status(401).json({ code: 401, message: '未登录', data: null });
@@ -60,7 +80,7 @@ app.post('/upload-url', async (req, res) => {
 
     // 签名 URL，有效期 15 分钟
     const expires = 15 * 60;
-    const uploadUrl = await ossClient.signatureUrl(ossKey, { expires });
+    const uploadUrl = await client.signatureUrl(ossKey, { expires });
 
     res.json({
       code: 0,
