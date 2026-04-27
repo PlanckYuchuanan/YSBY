@@ -163,6 +163,324 @@ function PlaceholderScreen({ name }: { name: string }) {
   );
 }
 
+// ============ 视频页（带上传功能） ============
+interface VideoItem {
+  id: string;
+  title: string;
+  cover_url: string;
+  video_url: string;
+  nickname: string;
+  avatar: string;
+  view_count: number;
+  like_count: number;
+  duration: number;
+}
+
+function VideoFeedScreen({ user }: { user: User | null }) {
+  const [showUpload, setShowUpload] = useState(false);
+  const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchVideos();
+  }, []);
+
+  const fetchVideos = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/video/videos?pageSize=20`);
+      const data = await res.json();
+      if (data.code === 0) {
+        setVideos(data.data.list || []);
+      }
+    } catch (e) {
+      console.error('获取视频列表失败', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ flex: 1, backgroundColor: '#f5f5f5', position: 'relative' }}>
+      {/* 顶部标题栏 */}
+      <div style={{
+        background: 'linear-gradient(135deg, #06b6a8 0%, #0891b2 100%)',
+        padding: '20px 20px 40px',
+        color: '#fff',
+        textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 20, fontWeight: 'bold' }}>视频广场</div>
+        <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>看视频赚积分</div>
+      </div>
+
+      {/* 视频列表 */}
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>加载中...</div>
+        ) : videos.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📹</div>
+            <div>暂无视频，快来上传第一个吧！</div>
+          </div>
+        ) : (
+          videos.map((video) => (
+            <div key={video.id} style={{
+              backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            }}>
+              <div style={{ position: 'relative', paddingTop: '56.25%', backgroundColor: '#000' }}>
+                {video.cover_url ? (
+                  <img src={video.cover_url} alt={video.title}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 40 }}>
+                    🎬
+                  </div>
+                )}
+                <div style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: '#fff' }}>
+                  {Math.floor((video.duration || 0) / 60)}:{String((video.duration || 0) % 60).padStart(2, '0')}
+                </div>
+              </div>
+              <div style={{ padding: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: '500', color: '#333', marginBottom: 8 }}>{video.title}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {video.avatar ? (
+                    <img src={video.avatar} alt={video.nickname} style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#06b6a8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#fff' }}>👤</div>
+                  )}
+                  <span style={{ fontSize: 13, color: '#666', flex: 1 }}>{video.nickname || '匿名用户'}</span>
+                  <span style={{ fontSize: 12, color: '#999' }}>👁 {video.view_count || 0}</span>
+                  <span style={{ fontSize: 12, color: '#999' }}>❤️ {video.like_count || 0}</span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 浮动上传按钮 */}
+      {user && (
+        <button
+          onClick={() => setShowUpload(true)}
+          style={{
+            position: 'fixed', bottom: 80, right: 20,
+            width: 56, height: 56, borderRadius: '50%',
+            backgroundColor: '#06b6a8', border: 'none',
+            boxShadow: '0 4px 12px rgba(6,182,168,0.4)',
+            cursor: 'pointer', fontSize: 28, zIndex: 99,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff',
+          }}
+          title="上传视频"
+        >+</button>
+      )}
+
+      {/* 上传弹窗 */}
+      {showUpload && <VideoUploadModal user={user} onClose={() => setShowUpload(false)} onSuccess={() => { setShowUpload(false); fetchVideos(); }} />}
+    </div>
+  );
+}
+
+// ============ 视频上传弹窗 ============
+function VideoUploadModal({ user, onClose, onSuccess }: { user: User | null; onClose: () => void; onSuccess: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
+  const [preview, setPreview] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith('video/')) {
+      setError('请选择视频文件');
+      return;
+    }
+    const maxSize = 500 * 1024 * 1024;
+    if (f.size > maxSize) {
+      setError('视频文件不能超过 500MB');
+      return;
+    }
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setTitle(f.name.replace(/\.[^.]+$/, ''));
+    setError('');
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    if (!title.trim()) { setError('请输入视频标题'); return; }
+    if (!user) { setError('请先登录'); return; }
+
+    setUploading(true);
+    setProgress(0);
+    setError('');
+
+    try {
+      // 1. 获取上传凭证
+      setProgress(10);
+      const token = localStorage.getItem('token');
+      const credRes = await fetch(`${API_BASE}/api/video/upload-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({ fileName: file.name, fileSize: file.size }),
+      });
+      const credData = await credRes.json();
+      if (credData.code !== 0) {
+        setError(credData.message || '获取上传凭证失败');
+        setUploading(false);
+        return;
+      }
+
+      const { uploadUrl, ossKey } = credData.data;
+
+      // 2. 上传文件到 OSS
+      setProgress(30);
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!uploadRes.ok) {
+        setError('视频上传失败，请重试');
+        setUploading(false);
+        return;
+      }
+
+      // 3. 从签名 URL 中提取视频 URL
+      setProgress(80);
+      const videoUrl = uploadUrl.split('?')[0];
+
+      // 4. 保存视频记录
+      const saveRes = await fetch(`${API_BASE}/api/video/videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          title: title.trim(),
+          videoUrl,
+          ossKey,
+          uploadChannel: 'user',
+        }),
+      });
+      const saveData = await saveRes.json();
+
+      setProgress(100);
+      if (saveData.code === 0) {
+        alert('上传成功！');
+        onSuccess();
+      } else {
+        setError(saveData.message || '保存视频记录失败');
+        setUploading(false);
+      }
+    } catch (e: any) {
+      setError(e.message || '上传失败，请重试');
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 200,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+    }}>
+      <div style={{
+        backgroundColor: '#fff', borderRadius: 16, width: '100%', maxWidth: 420,
+        maxHeight: '90vh', overflowY: 'auto',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+      }}>
+        {/* 头部 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #eee' }}>
+          <span style={{ fontSize: 17, fontWeight: '600', color: '#333' }}>上传视频</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: '#999', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ padding: 20 }}>
+          {/* 视频预览 */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              width: '100%', paddingTop: '56.25%', borderRadius: 12,
+              backgroundColor: '#f5f5f5', position: 'relative',
+              border: '2px dashed #e0e0e0', cursor: 'pointer', overflow: 'hidden',
+            }}
+          >
+            {preview ? (
+              <video src={preview} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} controls />
+            ) : (
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', textAlign: 'center', color: '#999' }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>📹</div>
+                <div style={{ fontSize: 14 }}>点击选择视频</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>支持 MP4，最大 500MB</div>
+              </div>
+            )}
+            <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileChange} style={{ display: 'none' }} />
+          </div>
+
+          {/* 文件名 */}
+          {file && <div style={{ fontSize: 12, color: '#999', marginTop: 8, textAlign: 'center' }}>已选: {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)</div>}
+
+          {/* 标题输入 */}
+          <div style={{ marginTop: 16 }}>
+            <label style={{ fontSize: 14, color: '#333', fontWeight: '500', display: 'block', marginBottom: 8 }}>视频标题 *</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="给视频取个标题吧"
+              maxLength={50}
+              style={{
+                width: '100%', padding: '12px 14px', borderRadius: 8,
+                border: '1px solid #e0e0e0', fontSize: 15, outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {/* 错误提示 */}
+          {error && (
+            <div style={{ marginTop: 12, padding: '10px 14px', backgroundColor: '#fff2f0', borderRadius: 8, color: '#ff4d4f', fontSize: 13 }}>{error}</div>
+          )}
+
+          {/* 上传进度 */}
+          {uploading && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginBottom: 6 }}>
+                <span>上传中...</span><span>{progress}%</span>
+              </div>
+              <div style={{ height: 6, backgroundColor: '#f0f0f0', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${progress}%`, backgroundColor: '#06b6a8', transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          )}
+
+          {/* 上传按钮 */}
+          <button
+            onClick={handleUpload}
+            disabled={!file || !title.trim() || uploading}
+            style={{
+              width: '100%', marginTop: 20, padding: '14px', borderRadius: 10,
+              backgroundColor: (!file || !title.trim() || uploading) ? '#ccc' : '#06b6a8',
+              border: 'none', color: '#fff', fontSize: 16, fontWeight: '600',
+              cursor: (!file || !title.trim() || uploading) ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {uploading ? `上传中 ${progress}%` : '确认上传'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 健康页面
 function HealthScreen() {
   const items = [
@@ -774,7 +1092,7 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff' }}>
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 60 }}>
-        {activeTab === 'Video' && <PlaceholderScreen name="Video" />}
+        {activeTab === 'Video' && <VideoFeedScreen user={user} />}
         {activeTab === 'Health' && <HealthScreen />}
         {activeTab === 'Message' && <PlaceholderScreen name="Message" />}
         {activeTab === 'Profile' && screen === 'profileDetail' ? (

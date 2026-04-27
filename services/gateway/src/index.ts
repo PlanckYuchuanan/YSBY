@@ -31,7 +31,7 @@ app.get('/health', (req, res) => {
 // API Routes - proxy to real services
 // IMPORTANT: Use 'localhost' not '127.0.0.1' because 127.0.0.1:4001 is occupied by QQ
 const USER_SERVICE = process.env.USER_SERVICE_URL || 'http://localhost:4001';
-const VIDEO_SERVICE = process.env.VIDEO_SERVICE_URL || 'http://localhost:4003';
+const VIDEO_SERVICE = process.env.VIDEO_SERVICE_URL || 'http://localhost:4002';
 const SOCIAL_SERVICE = process.env.SOCIAL_SERVICE_URL || 'http://localhost:4004';
 const POINTS_SERVICE = process.env.POINTS_SERVICE_URL || 'http://localhost:4002';
 const SHOP_SERVICE = process.env.SHOP_SERVICE_URL || 'http://localhost:4005';

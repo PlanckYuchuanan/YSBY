@@ -88,25 +88,39 @@ CREATE TABLE IF NOT EXISTS points_records (
 -- ============================================
 CREATE TABLE IF NOT EXISTS videos (
   id              VARCHAR(36) PRIMARY KEY,
-  user_id         VARCHAR(36) NOT NULL,
-  title           VARCHAR(200) NOT NULL,
-  description     TEXT,
+  user_id         VARCHAR(36) NOT NULL COMMENT '上传用户ID',
+  title           VARCHAR(200) NOT NULL COMMENT '视频标题',
+  description     TEXT COMMENT '视频描述',
   cover_url       VARCHAR(500) COMMENT '封面图URL',
   video_url       VARCHAR(500) COMMENT '视频文件URL',
   duration        INT COMMENT '视频时长(秒)',
-  width           INT,
-  height          INT,
+  width           INT COMMENT '视频宽度',
+  height          INT COMMENT '视频高度',
   tags            TEXT COMMENT '标签JSON数组',
   points          INT DEFAULT 10 COMMENT '完整观看奖励积分',
   view_count      BIGINT DEFAULT 0 COMMENT '播放量',
   like_count      BIGINT DEFAULT 0 COMMENT '点赞数',
   status          VARCHAR(20) DEFAULT 'approved' COMMENT 'pending/approved/rejected',
+  upload_channel  VARCHAR(20) DEFAULT 'user' COMMENT 'user=用户上传, platform=平台上传',
+  uploaded_at     DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
+  reviewed_at     DATETIME DEFAULT NULL COMMENT '审核时间(null=自动审核)',
+  published_at    DATETIME DEFAULT NULL COMMENT '发布时间(自动审核时=uploaded_at)',
+  oss_key         VARCHAR(500) COMMENT 'OSS 文件路径(区分于video_url)',
   created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_user (user_id),
   INDEX idx_status (status),
+  INDEX idx_uploaded (uploaded_at),
   INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- videos 表新增上传相关字段（已存在表时执行）
+ALTER TABLE videos
+  ADD COLUMN IF NOT EXISTS upload_channel VARCHAR(20) DEFAULT 'user' COMMENT 'user=用户上传, platform=平台上传' AFTER status,
+  ADD COLUMN IF NOT EXISTS uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间' AFTER upload_channel,
+  ADD COLUMN IF NOT EXISTS reviewed_at DATETIME DEFAULT NULL COMMENT '审核时间(null=自动审核)' AFTER uploaded_at,
+  ADD COLUMN IF NOT EXISTS published_at DATETIME DEFAULT NULL COMMENT '发布时间' AFTER reviewed_at,
+  ADD COLUMN IF NOT EXISTS oss_key VARCHAR(500) COMMENT 'OSS文件路径' AFTER published_at;
 
 -- ============================================
 -- 视频点赞表

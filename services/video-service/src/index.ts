@@ -3,6 +3,7 @@ import mysql from 'mysql2/promise';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
+import OSS from 'ali-oss';
 
 dotenv.config();
 
@@ -23,7 +24,60 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 const PORT = process.env.PORT || 4002;
 
-// 获取视频列表
+// OSS 客户端
+const ossClient = new OSS({
+  region: process.env.OSS_REGION || 'oss-cn-chengdu',
+  accessKeyId: process.env.OSS_ACCESS_KEY_ID || '',
+  accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET || '',
+  bucket: process.env.OSS_BUCKET || '',
+});
+
+// ============ OSS 上传凭证接口 ============
+// POST /upload-url
+// 前端请求上传凭证，前端直接上传视频到 OSS
+app.post('/upload-url', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) {
+      return res.status(401).json({ code: 401, message: '未登录', data: null });
+    }
+
+    const { fileName, fileSize, duration } = req.body;
+
+    if (!fileName || !fileSize) {
+      return res.status(400).json({ code: 400, message: '缺少文件参数', data: null });
+    }
+
+    // 限制文件大小 500MB
+    const maxSize = 500 * 1024 * 1024;
+    if (Number(fileSize) > maxSize) {
+      return res.status(400).json({ code: 400, message: '文件大小不能超过 500MB', data: null });
+    }
+
+    // 生成 OSS key：videos/{userId}/{timestamp}-{uuid}.{ext}
+    const ext = fileName.split('.').pop()?.toLowerCase() || 'mp4';
+    const ossKey = `videos/${userId}/${Date.now()}-${uuidv4()}.${ext}`;
+
+    // 签名 URL，有效期 15 分钟
+    const expires = 15 * 60;
+    const uploadUrl = await ossClient.signatureUrl(ossKey, { expires });
+
+    res.json({
+      code: 0,
+      data: {
+        uploadUrl,
+        ossKey,
+        expires,
+      },
+      message: 'success',
+    });
+  } catch (err: any) {
+    console.error('[upload-url error]', err);
+    res.status(500).json({ code: 500, message: err.message || '获取上传凭证失败', data: null });
+  }
+});
+
+// ============ 获取视频列表 ============
 app.get('/videos', async (req, res) => {
   try {
     const { page = 1, pageSize = 20, userId, tag, sortBy = 'latest' } = req.query;
@@ -108,13 +162,24 @@ app.get('/videos/:id', async (req, res) => {
 // 上传视频
 app.post('/videos', async (req, res) => {
   try {
-    const { userId, title, description, coverUrl, videoUrl, duration, width, height, points = 10, tags = [] } = req.body;
+    const {
+      userId, title, description, coverUrl, videoUrl, duration,
+      width, height, points = 10, tags = [],
+      ossKey, uploadChannel = 'user',
+    } = req.body;
 
     const id = uuidv4();
+    const now = new Date();
+
+    // 自动审核：用户上传默认 approved，同时设置审核时间和发布时间
+    const status = 'approved';
+    const reviewedAt = now;
+    const publishedAt = now;
+
     await pool.execute(
-      `INSERT INTO videos (id, user_id, title, description, cover_url, video_url, duration, width, height, points, tags, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved')`,
-      [id, userId, title, description, coverUrl, videoUrl, duration, width, height, points, JSON.stringify(tags)]
+      `INSERT INTO videos (id, user_id, title, description, cover_url, video_url, duration, width, height, points, tags, status, upload_channel, uploaded_at, reviewed_at, published_at, oss_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, userId, title, description, coverUrl, videoUrl, duration, width, height, points, JSON.stringify(tags), status, uploadChannel, now, reviewedAt, publishedAt, ossKey || null]
     );
 
     res.json({ code: 0, data: { id }, message: 'success' });
