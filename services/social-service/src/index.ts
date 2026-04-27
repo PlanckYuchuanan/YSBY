@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const app = express();
+const app: ReturnType<typeof express> = express();
 app.use(express.json());
 
 const pool = mysql.createPool({
@@ -187,13 +187,32 @@ app.post('/posts/:id/like', async (req, res) => {
 
     await pool.execute('UPDATE posts SET like_count = like_count + 1 WHERE id = ?', [id]);
 
-    // 发放积分
-    await pool.execute('UPDATE users SET points = points + 1 WHERE id = ?', [userId]);
-    const [user] = await pool.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
-    await pool.execute(
-      'INSERT INTO points_records (id, user_id, type, points, balance, description, related_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [uuidv4(), userId, 'like', 1, user[0].points, '点赞帖子', id]
-    );
+    // 发放积分（使用事务保证余额快照准确）
+    const likeConn = await pool.getConnection();
+    await likeConn.beginTransaction();
+    try {
+      const [userBefore] = await likeConn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balBefore = userBefore[0].points;
+
+      await likeConn.execute('UPDATE users SET points = points + 1 WHERE id = ?', [userId]);
+
+      const [userAfter] = await likeConn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balAfter = userAfter[0].points;
+
+      await likeConn.execute(
+        `INSERT INTO points_records
+          (id, user_id, business_type, action, points, balance_before, balance_after, operator_type, operator_id, description, related_type, related_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), userId, 'like', 'add', 1, balBefore, balAfter, 'system', null, '点赞帖子', 'post', id]
+      );
+
+      await likeConn.commit();
+    } catch (err) {
+      await likeConn.rollback();
+      throw err;
+    } finally {
+      likeConn.release();
+    }
 
     res.json({ code: 0, data: null, message: 'success' });
   } catch (err: any) {
@@ -275,13 +294,32 @@ app.post('/posts/:id/comments', async (req, res) => {
     // 更新评论数
     await pool.execute('UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?', [id]);
 
-    // 发放积分
-    await pool.execute('UPDATE users SET points = points + 2 WHERE id = ?', [userId]);
-    const [user] = await pool.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
-    await pool.execute(
-      'INSERT INTO points_records (id, user_id, type, points, balance, description, related_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [uuidv4(), userId, 'comment', 2, user[0].points, '发布评论', commentId]
-    );
+    // 发放积分（使用事务保证余额快照准确）
+    const commentConn = await pool.getConnection();
+    await commentConn.beginTransaction();
+    try {
+      const [userBefore] = await commentConn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balBefore = userBefore[0].points;
+
+      await commentConn.execute('UPDATE users SET points = points + 2 WHERE id = ?', [userId]);
+
+      const [userAfter] = await commentConn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balAfter = userAfter[0].points;
+
+      await commentConn.execute(
+        `INSERT INTO points_records
+          (id, user_id, business_type, action, points, balance_before, balance_after, operator_type, operator_id, description, related_type, related_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), userId, 'comment', 'add', 2, balBefore, balAfter, 'system', null, '发布评论', 'comment', commentId]
+      );
+
+      await commentConn.commit();
+    } catch (err) {
+      await commentConn.rollback();
+      throw err;
+    } finally {
+      commentConn.release();
+    }
 
     res.json({ code: 0, data: { id: commentId }, message: 'success' });
   } catch (err: any) {

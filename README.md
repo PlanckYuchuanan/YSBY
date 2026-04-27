@@ -1,6 +1,6 @@
 # YSBY 项目
 
-> 视频社交 + 即时通讯 + 积分商城
+> 短视频 + 社群 + 即时通讯 + 积分商城
 
 ## 技术栈
 
@@ -101,7 +101,17 @@ Web管理端，包含：
 - 统一使用 TypeScript
 - API响应格式：`{ code, data, message }`
 - 命名规范：小写字母 + 下划线（数据库），小驼峰（代码）
-- Git分支：`feature/xxx`, `fix/xxx`, `hotfix/xxx`
+- Git仓库地址：`https://github.com/PlanckYuchuanan/YSBY.git`
+
+
+
+## 很重要的！
+
+1. **文档在 `/rules/` 下**，每次必须阅读（但不要只看这些，按需参考项目所有文件）
+2. **每次代码变更后**，如果涉及接口或数据库，必须同步更新 `/rules/` 下的对应文档：
+   - 新增/修改 API → 更新 `rules/接口文档.MD`
+   - 新增/修改表结构 → 更新 `rules/数据库文档.MD`
+   - 项目架构/规范变更 → 更新 `rules/AI的参考文档.md` 和 `README.md`
 
 ## 待讨论的功能点
 

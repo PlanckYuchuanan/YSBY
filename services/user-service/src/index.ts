@@ -143,23 +143,41 @@ app.post('/register', async (req, res) => {
       return res.status(400).json({ code: 400, message: '手机号已注册' });
     }
 
-    // 创建用户
+    // 创建用户（事务保证积分记录完整）
     const id = uuidv4();
     const passwordHash = await bcrypt.hash(password, 10);
+    const regConn = await pool.getConnection();
+    await regConn.beginTransaction();
+    try {
+      await regConn.execute(
+        'INSERT INTO users (id, username, nickname, phone, password_hash, points) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, `user_${Date.now()}`, nickname, phone, passwordHash, 100]
+      );
 
-    await pool.execute(
-      'INSERT INTO users (id, username, nickname, phone, password_hash, points) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, `user_${Date.now()}`, nickname, phone, passwordHash, 100]
-    );
+      // 写入初始积分记录
+      await regConn.execute(
+        `INSERT INTO points_records
+          (id, user_id, business_type, action, points, balance_before, balance_after, operator_type, operator_id, description, related_type, related_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), id, 'register', 'add', 100, 0, 100, 'system', null, '新用户注册奖励', 'user', id]
+      );
 
-    // 生成token
-    const token = jwt.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      await regConn.commit();
 
-    res.json({
-      code: 0,
-      data: { token, user: { id, phone, nickname, points: 100 } },
-      message: '注册成功'
-    });
+      // 生成token
+      const token = jwt.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+      res.json({
+        code: 0,
+        data: { token, user: { id, phone, nickname, points: 100 } },
+        message: '注册成功'
+      });
+    } catch (err) {
+      await regConn.rollback();
+      throw err;
+    } finally {
+      regConn.release();
+    }
   } catch (err: any) {
     res.status(500).json({ code: 500, message: err.message });
   }

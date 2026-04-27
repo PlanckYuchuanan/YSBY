@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const app = express();
+const app: ReturnType<typeof express> = express();
 app.use(express.json());
 
 const pool = mysql.createPool({
@@ -47,7 +47,7 @@ app.get('/records', async (req, res) => {
     const params: any[] = [userId];
 
     if (type) {
-      whereClause += ' AND type = ?';
+      whereClause += ' AND business_type = ?';
       params.push(type);
     }
 
@@ -117,21 +117,47 @@ app.post('/adjust', async (req, res) => {
     await connection.beginTransaction();
 
     try {
+      // 查询变动前余额
+      const [users] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      if (!users.length) {
+        await connection.rollback();
+        return res.status(404).json({ code: 404, message: '用户不存在', data: null });
+      }
+      const balanceBefore = users[0].points;
+
+      // 更新积分余额
       await connection.execute(
         'UPDATE users SET points = points + ? WHERE id = ?',
         [points, userId]
       );
 
-      const [users] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
-      const balance = users[0].points;
+      // 查询变动后余额
+      const [updatedUsers] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balanceAfter = updatedUsers[0].points;
 
+      // 写入积分变动记录
       await connection.execute(
-        'INSERT INTO points_records (id, user_id, type, points, balance, description, related_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [uuidv4(), userId, points > 0 ? 'purchase' : 'exchange', points, balance, description || '管理员调整', adminId]
+        `INSERT INTO points_records
+          (id, user_id, business_type, action, points, balance_before, balance_after, operator_type, operator_id, description, related_type, related_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuidv4(),
+          userId,
+          points > 0 ? 'recharge' : 'adjust',
+          points > 0 ? 'add' : 'reduce',
+          Math.abs(points),
+          balanceBefore,
+          balanceAfter,
+          'admin',
+          adminId,
+          description || (points > 0 ? '管理员充值' : '管理员扣除'),
+          'admin_adjust',
+          null
+        ]
       );
 
       await connection.commit();
-      res.json({ code: 0, data: { balance }, message: 'success' });
+      res.json({ code: 0, data: { balance: balanceAfter }, message: 'success' });
     } catch (err) {
       await connection.rollback();
       throw err;

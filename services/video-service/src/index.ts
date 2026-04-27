@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const app = express();
+const app: ReturnType<typeof express> = express();
 app.use(express.json());
 
 const pool = mysql.createPool({
@@ -148,14 +148,32 @@ app.post('/videos/:id/like', async (req, res) => {
     // 更新点赞数
     await pool.execute('UPDATE videos SET like_count = like_count + 1 WHERE id = ?', [id]);
 
-    // 发放积分
-    await pool.execute(
-      `INSERT INTO points_records (id, user_id, type, points, balance, description, related_id)
-       SELECT ?, u.id, 'like', 1, u.points + 1, '点赞视频', ?
-       FROM users u WHERE u.id = ?`,
-      [uuidv4(), id, userId]
-    );
-    await pool.execute('UPDATE users SET points = points + 1 WHERE id = ?', [userId]);
+    // 发放积分（使用事务保证余额快照准确）
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+      const [userRows] = await conn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balanceBefore = userRows[0].points;
+
+      await conn.execute('UPDATE users SET points = points + 1 WHERE id = ?', [userId]);
+
+      const [updatedRows] = await conn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balanceAfter = updatedRows[0].points;
+
+      await conn.execute(
+        `INSERT INTO points_records
+          (id, user_id, business_type, action, points, balance_before, balance_after, operator_type, operator_id, description, related_type, related_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), userId, 'like', 'add', 1, balanceBefore, balanceAfter, 'system', null, '点赞视频', 'video', id]
+      );
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     res.json({ code: 0, data: null, message: 'success' });
   } catch (err: any) {
@@ -215,23 +233,33 @@ app.post('/videos/:id/watch', async (req, res) => {
       const watchPercent = watchDuration / video.duration;
 
       if (watchPercent >= 0.9 && (!records.length || !records[0].points_awarded)) {
-        // 发放积分
-        const [userResult] = await pool.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
-        const newBalance = userResult[0].points + video.points;
+        // 发放积分（使用事务保证余额快照准确）
+        const watchConn = await pool.getConnection();
+        await watchConn.beginTransaction();
+        try {
+          const [userBefore] = await watchConn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+          const balBefore = userBefore[0].points;
 
-        await pool.execute(
-          'UPDATE users SET points = points + ? WHERE id = ?',
-          [video.points, userId]
-        );
-        await pool.execute(
-          `INSERT INTO points_records (id, user_id, type, points, balance, description, related_id)
-           VALUES (?, ?, 'watch_video', ?, ?, '观看视频获得', ?)`,
-          [uuidv4(), userId, video.points, newBalance, id]
-        );
-        await pool.execute(
-          'UPDATE watch_records SET points_awarded = TRUE WHERE user_id = ? AND video_id = ?',
-          [userId, id]
-        );
+          await watchConn.execute('UPDATE users SET points = points + ? WHERE id = ?', [video.points, userId]);
+          await watchConn.execute('UPDATE watch_records SET points_awarded = TRUE WHERE user_id = ? AND video_id = ?', [userId, id]);
+
+          const [userAfter] = await watchConn.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+          const balAfter = userAfter[0].points;
+
+          await watchConn.execute(
+            `INSERT INTO points_records
+              (id, user_id, business_type, action, points, balance_before, balance_after, operator_type, operator_id, description, related_type, related_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [uuidv4(), userId, 'video', 'add', video.points, balBefore, balAfter, 'system', null, `完整观看视频: ${video.title}`, 'video', id]
+          );
+
+          await watchConn.commit();
+        } catch (err) {
+          await watchConn.rollback();
+          throw err;
+        } finally {
+          watchConn.release();
+        }
       }
     }
 

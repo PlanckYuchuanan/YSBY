@@ -61,50 +61,93 @@ CREATE TABLE IF NOT EXISTS areas (
 -- ============================================
 -- 积分记录表
 -- ============================================
-CREATE TABLE IF NOT EXISTS point_transactions (
-  id VARCHAR(36) PRIMARY KEY,
-  user_id VARCHAR(36) NOT NULL,
-  amount BIGINT NOT NULL COMMENT '正数=增加, 负数=减少',
-  type VARCHAR(50) NOT NULL COMMENT 'sign, video, activity, exchange, etc.',
-  description VARCHAR(255),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+-- 记录用户积分的每一笔变动，包含余额快照，保证可追溯可对账
+CREATE TABLE IF NOT EXISTS points_records (
+  id              VARCHAR(36) PRIMARY KEY COMMENT 'UUID',
+  user_id         VARCHAR(36) NOT NULL COMMENT '用户ID',
+  business_type   VARCHAR(50) NOT NULL COMMENT '业务类型: sign/video/like/comment/exchange/register/adjust/recharge',
+  action          VARCHAR(20) NOT NULL COMMENT '动作: add(增加)/reduce(减少)',
+  points          INT NOT NULL COMMENT '变动积分（正数）',
+  balance_before  BIGINT NOT NULL COMMENT '变动前余额',
+  balance_after   BIGINT NOT NULL COMMENT '变动后余额',
+  operator_type   VARCHAR(20) NOT NULL DEFAULT 'system' COMMENT '操作者类型: user/system/admin',
+  operator_id     VARCHAR(36) DEFAULT NULL COMMENT '操作者ID',
+  description     VARCHAR(255) COMMENT '变动描述',
+  related_type    VARCHAR(50) DEFAULT NULL COMMENT '关联业务类型: video/post/order etc.',
+  related_id      VARCHAR(36) DEFAULT NULL COMMENT '关联业务ID',
+  idempotent_key  VARCHAR(64) DEFAULT NULL COMMENT '幂等键，防止重复扣积分',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_user (user_id),
-  INDEX idx_type (type),
+  INDEX idx_business_type (business_type),
+  INDEX idx_idempotent (idempotent_key),
   INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- 视频表（预留）
+-- 视频表
 -- ============================================
 CREATE TABLE IF NOT EXISTS videos (
-  id VARCHAR(36) PRIMARY KEY,
-  user_id VARCHAR(36) NOT NULL,
-  title VARCHAR(200) NOT NULL,
-  description TEXT,
-  cover_url VARCHAR(500),
-  video_url VARCHAR(500),
-  duration INT COMMENT '秒',
-  views BIGINT DEFAULT 0,
-  likes BIGINT DEFAULT 0,
-  status TINYINT DEFAULT 1 COMMENT '0=待审核, 1=已发布, 2=已下架',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id              VARCHAR(36) PRIMARY KEY,
+  user_id         VARCHAR(36) NOT NULL,
+  title           VARCHAR(200) NOT NULL,
+  description     TEXT,
+  cover_url       VARCHAR(500) COMMENT '封面图URL',
+  video_url       VARCHAR(500) COMMENT '视频文件URL',
+  duration        INT COMMENT '视频时长(秒)',
+  width           INT,
+  height          INT,
+  tags            TEXT COMMENT '标签JSON数组',
+  points          INT DEFAULT 10 COMMENT '完整观看奖励积分',
+  view_count      BIGINT DEFAULT 0 COMMENT '播放量',
+  like_count      BIGINT DEFAULT 0 COMMENT '点赞数',
+  status          VARCHAR(20) DEFAULT 'approved' COMMENT 'pending/approved/rejected',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_user (user_id),
   INDEX idx_status (status),
   INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- 视频评论表（预留）
+-- 视频点赞表
+-- ============================================
+CREATE TABLE IF NOT EXISTS video_likes (
+  id          VARCHAR(36) PRIMARY KEY,
+  user_id     VARCHAR(36) NOT NULL,
+  video_id    VARCHAR(36) NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_video (user_id, video_id),
+  INDEX idx_video (video_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 视频观看记录表
+-- ============================================
+CREATE TABLE IF NOT EXISTS watch_records (
+  id                VARCHAR(36) PRIMARY KEY,
+  user_id           VARCHAR(36) NOT NULL,
+  video_id          VARCHAR(36) NOT NULL,
+  watch_duration    INT DEFAULT 0 COMMENT '累计观看时长(秒)',
+  points_awarded    TINYINT DEFAULT 0 COMMENT '是否已发放积分: 0=未发放, 1=已发放',
+  created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_video (user_id, video_id),
+  INDEX idx_user (user_id),
+  INDEX idx_video (video_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 视频评论表（与 social-service 的 comments 共用）
 -- ============================================
 CREATE TABLE IF NOT EXISTS video_comments (
-  id VARCHAR(36) PRIMARY KEY,
-  video_id VARCHAR(36) NOT NULL,
-  user_id VARCHAR(36) NOT NULL,
-  parent_id VARCHAR(36) DEFAULT NULL COMMENT '回复的评论ID',
-  content TEXT NOT NULL,
-  likes BIGINT DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  id              VARCHAR(36) PRIMARY KEY,
+  video_id        VARCHAR(36) NOT NULL COMMENT 'video_id 或 post_id（根据业务场景）',
+  user_id         VARCHAR(36) NOT NULL,
+  parent_id       VARCHAR(36) DEFAULT NULL COMMENT '回复的评论ID（楼中楼）',
+  reply_user_id   VARCHAR(36) DEFAULT NULL COMMENT '回复目标用户ID',
+  content         TEXT NOT NULL,
+  like_count      BIGINT DEFAULT 0 COMMENT '点赞数',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_video (video_id),
   INDEX idx_user (user_id),
   INDEX idx_parent (parent_id)
@@ -129,38 +172,90 @@ CREATE TABLE IF NOT EXISTS health_checkins (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- 订单表（预留）
+-- 话题表
+-- ============================================
+CREATE TABLE IF NOT EXISTS topics (
+  id              VARCHAR(36) PRIMARY KEY,
+  name            VARCHAR(100) NOT NULL,
+  description     TEXT,
+  cover_url       VARCHAR(500),
+  post_count      INT DEFAULT 0 COMMENT '帖子数量',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_post_count (post_count DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 帖子表
+-- ============================================
+CREATE TABLE IF NOT EXISTS posts (
+  id              VARCHAR(36) PRIMARY KEY,
+  user_id         VARCHAR(36) NOT NULL,
+  topic_id        VARCHAR(36) DEFAULT NULL,
+  title           VARCHAR(200) NOT NULL,
+  content         TEXT NOT NULL,
+  images          TEXT COMMENT '图片JSON数组',
+  like_count      BIGINT DEFAULT 0 COMMENT '点赞数',
+  comment_count   BIGINT DEFAULT 0 COMMENT '评论数',
+  status          VARCHAR(20) DEFAULT 'approved' COMMENT 'pending/approved/rejected',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_user (user_id),
+  INDEX idx_topic (topic_id),
+  INDEX idx_status (status),
+  INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 帖子点赞表
+-- ============================================
+CREATE TABLE IF NOT EXISTS post_likes (
+  id          VARCHAR(36) PRIMARY KEY,
+  user_id     VARCHAR(36) NOT NULL,
+  post_id     VARCHAR(36) NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_post (user_id, post_id),
+  INDEX idx_post (post_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 订单表
 -- ============================================
 CREATE TABLE IF NOT EXISTS orders (
-  id VARCHAR(36) PRIMARY KEY,
-  user_id VARCHAR(36) NOT NULL,
-  order_no VARCHAR(50) NOT NULL UNIQUE,
-  amount DECIMAL(10,2) NOT NULL,
-  points INT DEFAULT 0 COMMENT '使用积分抵扣',
-  status TINYINT DEFAULT 0 COMMENT '0=待支付, 1=已支付, 2=已发货, 3=已完成, 4=已取消',
-  address TEXT COMMENT '收货地址JSON',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id              VARCHAR(36) PRIMARY KEY,
+  user_id         VARCHAR(36) NOT NULL,
+  product_id      VARCHAR(36) NOT NULL COMMENT '商品ID',
+  order_no        VARCHAR(50) NOT NULL UNIQUE COMMENT '订单号',
+  quantity        INT DEFAULT 1 COMMENT '兑换数量',
+  total_points    INT NOT NULL COMMENT '消耗积分总额',
+  status          VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/paid/shipped/completed/cancelled',
+  address         TEXT COMMENT '收货地址',
+  phone           VARCHAR(20) COMMENT '收货人电话',
+  receiver_name   VARCHAR(100) COMMENT '收货人姓名',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_user (user_id),
   INDEX idx_order_no (order_no),
   INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- 商品表（预留）
+-- 商品表
 -- ============================================
 CREATE TABLE IF NOT EXISTS products (
-  id VARCHAR(36) PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  description TEXT,
-  price DECIMAL(10,2) NOT NULL,
-  points_price INT DEFAULT 0 COMMENT '积分价格',
-  stock INT DEFAULT 0,
-  cover_url VARCHAR(500),
-  images TEXT COMMENT '图片JSON数组',
-  status TINYINT DEFAULT 1 COMMENT '0=下架, 1=上架',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_status (status)
+  id              VARCHAR(36) PRIMARY KEY,
+  name            VARCHAR(100) NOT NULL,
+  description     TEXT,
+  price           DECIMAL(10,2) NOT NULL COMMENT '现金价格（元）',
+  points_price    INT DEFAULT 0 COMMENT '积分价格',
+  stock           INT DEFAULT 0 COMMENT '库存数量',
+  cover_url       VARCHAR(500) COMMENT '封面图URL',
+  images          TEXT COMMENT '图片JSON数组',
+  category        VARCHAR(50) COMMENT '商品分类',
+  status          VARCHAR(20) DEFAULT 'published' COMMENT 'draft/published/offline',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  INDEX idx_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================

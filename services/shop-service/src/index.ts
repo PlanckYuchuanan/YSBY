@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const app = express();
+const app: ReturnType<typeof express> = express();
 app.use(express.json());
 
 const pool = mysql.createPool({
@@ -186,11 +186,39 @@ app.post('/exchange', async (req, res) => {
       // 减少库存
       await connection.execute('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
 
-      // 记录积分消耗
+      // 记录积分消耗（使用事务保证余额快照准确）
+      const [beforeUsers] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balanceBefore = beforeUsers[0].points;
+
+      // 扣除积分
+      await connection.execute('UPDATE users SET points = points - ? WHERE id = ?', [totalPoints, userId]);
+
+      // 减少库存
+      await connection.execute('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
+
+      // 查询扣除后余额
       const [newBalance] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]) as any;
+      const balanceAfter = newBalance[0].points;
+
+      // 写入积分变动记录
       await connection.execute(
-        'INSERT INTO points_records (id, user_id, type, points, balance, description, related_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [uuidv4(), userId, 'exchange', -totalPoints, newBalance[0].points, `兑换商品: ${product.name}`, orderId]
+        `INSERT INTO points_records
+          (id, user_id, business_type, action, points, balance_before, balance_after, operator_type, operator_id, description, related_type, related_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuidv4(),
+          userId,
+          'exchange',
+          'reduce',
+          totalPoints,
+          balanceBefore,
+          balanceAfter,
+          'user',
+          userId,
+          `兑换商品: ${product.name}`,
+          'order',
+          orderId
+        ]
       );
 
       await connection.commit();
